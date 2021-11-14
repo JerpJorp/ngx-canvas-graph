@@ -1,5 +1,7 @@
 import { NgModule } from '@angular/core';
 import { BrowserModule } from '@angular/platform-browser';
+import { NgxCanvasGraphModule } from 'ngx-canvas-graph';
+
 
 import { AppComponent } from './app.component';
 
@@ -8,7 +10,8 @@ import { AppComponent } from './app.component';
     AppComponent
   ],
   imports: [
-    BrowserModule
+    BrowserModule,
+    NgxCanvasGraphModule
   ],
   providers: [],
   bootstrap: [AppComponent]

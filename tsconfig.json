@@ -11,6 +11,12 @@
     "sourceMap": true,
     "declaration": false,
     "downlevelIteration": true,
+    "paths": {
+      "ngx-canvas-graph": [
+        "dist/ngx-canvas-graph/ngx-canvas-graph",
+        "dist/ngx-canvas-graph"
+      ]
+    },
     "experimentalDecorators": true,
     "moduleResolution": "node",
     "importHelpers": true,
