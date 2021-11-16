@@ -9,4 +9,4 @@ export * from './lib/link';
 export * from './lib/node';
 export * from './lib/override-parameters';
 export * from './lib/graph-data';
-
+export * from './lib/expansion-modifier';

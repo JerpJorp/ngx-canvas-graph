@@ -12,6 +12,7 @@ import { Node } from './node';
 import { Link } from './link';
 import { GraphData, IExtendedEdge, IExtendedNode } from './graph-data';
 import { IClearOverrideParameters, ILinkOverrideParameters, INodeOverrideParameters } from './override-parameters';
+import { ExpansionModifier } from './expansion-modifier';
 
 @Component({
   selector: 'lib-ngx-canvas-graph',
@@ -33,7 +34,10 @@ export class NgxCanvasGraphComponent implements OnInit, OnChanges, OnDestroy {
     rankdir: 'LR' };
 
 
+  @Input() initialCollapseDepth = 99;
+
   @Output() nodeClick = new EventEmitter<Node>();
+  @Output() nodeDoubleClick = new EventEmitter<Node>();
   @Output() nodeMouseOver = new EventEmitter<Node>();
 
   @Output() linkDrawOverride = new EventEmitter<ILinkOverrideParameters>();
@@ -49,18 +53,23 @@ export class NgxCanvasGraphComponent implements OnInit, OnChanges, OnDestroy {
 
   lastMousedNode: Node | undefined;
 
+  expansionModifier: ExpansionModifier | undefined;
+
   constructor(private smartSvc: NgxSmartCanvasService) { }
 
   ngOnInit(): void {
 
     this.smartSvc.ready$.pipe(takeUntil(this.destroyed$), filter(x => x !== undefined && x.componentId === this.graphId)).subscribe(x => {
       this.ctx = x?.ctx as CanvasRenderingContext2D;
+      this.expansionModifier = new ExpansionModifier(this.graphData, this.initialCollapseDepth);
       this.Draw(this.ctx);
     });
 
     this.smartSvc.redrawRequest$.pipe(takeUntil(this.destroyed$), filter(x => x.componentId === this.graphId)).subscribe(x => this.Draw(x.ctx));
 
     this.smartSvc.click$.pipe(takeUntil(this.destroyed$), filter(x => x.componentId === this.graphId)).subscribe(x => this.MouseClick(x));
+
+    this.smartSvc.doubleClick$.pipe(takeUntil(this.destroyed$), filter(x => x.componentId === this.graphId)).subscribe(x => this.MouseDoubleClick(x));
 
     this.smartSvc.mouseOver$.pipe(takeUntil(this.destroyed$), filter(x => x.componentId === this.graphId)).subscribe(x => this.MouseOver(x));
 
@@ -69,6 +78,7 @@ export class NgxCanvasGraphComponent implements OnInit, OnChanges, OnDestroy {
 
   ngOnChanges(changes: SimpleChanges): void {
     if (changes.graphData) {
+      this.expansionModifier = new ExpansionModifier(this.graphData, this.initialCollapseDepth);
       this.ProcessNodes();
     }
   }
@@ -83,18 +93,21 @@ export class NgxCanvasGraphComponent implements OnInit, OnChanges, OnDestroy {
       this.clear(this.ctx);
     }
 
-    if (this.graphData.nodes) {
-      const nodes = this.graphData.nodes;
-      const links = this.graphData.links;
+    const data = this.expansionModifier?.uncollapsedGraphData;
+    if (data && data.nodes.length > 0) {
+      const nodes = data.nodes;
+      const links = data.links;
       const graph = new dagre.graphlib.Graph();
       graph.setGraph(this.graphSettings);
       nodes.forEach(node => graph.setNode(node.id, { width: 50 + node.displayText.length * 8, height: 42, source: node }));
       links.forEach(link => graph.setEdge(link.fromNodeId as string, link.toNodeId as string, { source: link }));
       dagre.layout(graph);
-      this.edges = graph.edges().map(e => {
-        const x = graph.edge(e) as unknown as {source: Link, points: Array<{ x: number; y: number }>};        
-        return { start: graph.node(e.v), end: graph.node(e.w), link: x.source, points: x.points }
-      });
+      this.edges = graph.edges()
+        .map(e => {
+          const x = graph.edge(e) as unknown as {source: Link, points: Array<{ x: number; y: number }>};        
+          return { start: graph.node(e.v), end: graph.node(e.w), link: x.source, points: x.points }
+        })
+        .filter(x => x.start && x.end) ;
 
       this.nodes = graph.nodes().map(n => graph.node(n) as dagre.Node<IExtendedNode>);
     }
@@ -156,13 +169,23 @@ export class NgxCanvasGraphComponent implements OnInit, OnChanges, OnDestroy {
 
     ctx.fillStyle = n.source.backColor ? n.source.backColor : '#dddddd';
     CanvasHelper.roundRect(ctx, n.x, n.y, n.width, n.height, 5);    
-    ctx.fill();
-    ctx.strokeStyle = 'black';
+    ctx.fill();    
+    ctx.strokeStyle = 'black';    
     ctx.stroke();
+    if (n.source.internalDisplayState === 'collapsed') {
+      this.drawExpandIndicator(n, ctx);
+    }    
     if (n.source.displayText) {
       ctx.fillStyle = n.source.textColor ? n.source.textColor : 'black';
       ctx.fillText(n.source.displayText, n.x + (n.width / 2), n.y + 27);
     }
+  }
+
+  drawExpandIndicator(n: dagre.Node<IExtendedNode>, ctx: CanvasRenderingContext2D) {
+    ctx.beginPath();
+    ctx.ellipse(n.x + n.width + 8, n.y + n.height / 2, 3, 4, 0, 0, 2 * Math.PI)
+    ctx.closePath();
+    ctx.stroke();
   }
 
   MouseOver(x: SmartCanvasInfo): void {
@@ -175,6 +198,21 @@ export class NgxCanvasGraphComponent implements OnInit, OnChanges, OnDestroy {
         this.nodeMouseOver.emit(matching);        
       }
     }   
+  }
+
+  MouseDoubleClick(x: SmartCanvasInfo): void {
+    const matching = this.findMatchingNode(x);
+    this.lastMousedNode = matching;
+
+    if (this.expansionModifier && matching) {
+      if (this.expansionModifier.toggleCollapse(matching)) {
+        this.ProcessNodes();
+      }
+
+    }
+    if (this.lastMousedNode) {
+      this.nodeDoubleClick.emit(matching);
+    }
   }
 
   MouseClick(x: SmartCanvasInfo): void {

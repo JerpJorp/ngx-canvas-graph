@@ -27,6 +27,7 @@
         ></lib-ngx-canvas-graph>
 
         <lib-ngx-canvas-graph *ngIf="plain" [graphId]="'customId'" 
+          [initialCollapseDepth]="2"
           [graphData]="graphData"
           (nodeClick)="nodeClick($event)"
           (nodeMouseOver)="nodeMouseOver($event)"

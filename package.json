@@ -22,7 +22,7 @@
     "d3-shape": "^3.0.1",
     "dagre": "^0.8.5",
     "faker": "^5.5.3",
-    "ngx-smart-canvas": "^0.0.9",
+    "ngx-smart-canvas": "latest",
     "rxjs": "~6.6.0",
     "tslib": "^2.3.0",
     "uuid": "^8.3.2",
