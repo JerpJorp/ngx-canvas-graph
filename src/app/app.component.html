@@ -1,51 +1,38 @@
 <nav class="navbar navbar-expand-lg navbar-light bg-light">
   <div class="container-fluid">
-    <a class="navbar-brand" href="#">Navbar</a>
-    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
-      <span class="navbar-toggler-icon"></span>
-    </button>
-    <div class="collapse navbar-collapse" id="navbarSupportedContent">
-      <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-        <li class="nav-item">
-          <a class="nav-link active" aria-current="page" href="#">Home</a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link" href="#">Link</a>
-        </li>
-        <li class="nav-item dropdown">
-          <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-            Dropdown
-          </a>
-          <ul class="dropdown-menu" aria-labelledby="navbarDropdown">
-            <li><a class="dropdown-item" href="#">Action</a></li>
-            <li><a class="dropdown-item" href="#">Another action</a></li>
-            <li><hr class="dropdown-divider"></li>
-            <li><a class="dropdown-item" href="#">Something else here</a></li>
-          </ul>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link disabled" href="#" tabindex="-1" aria-disabled="true">Disabled</a>
-        </li>
-      </ul>
-      <form class="d-flex">
-        <input class="form-control me-2" type="search" placeholder="Search" aria-label="Search">
-        <button class="btn btn-outline-success" type="submit">Search</button>
-      </form>
-    </div>
+    <span class="navbar-brand mb-0 h3">ngx-canvas-graph wrapper</span>
   </div>
 </nav>
 
-
 <div class="container-fluid">
   <div class="row">
-    <div class="col-md-12">
-      <h1>Hello</h1>
-      <lib-ngx-canvas-graph [graphSettings]="{ 
+    <div class="col-md-2">
+      <div class="alert alert-success " role="alert">{{lastMessage}}</div>
+      <button (click)="recreate()" class="btn btn-outline-success mx-2">Recreate</button>
+      <button (click)="plain = !plain; recreate()" class="btn btn-outline-success mx-2">Toggle Plain/Custom</button>
+    </div>
+    <div class="col-md-10">
+      <lib-ngx-canvas-graph *ngIf="!plain" [graphId]="'customId'" [graphSettings]="{ 
         width: 1800, 
         height: 1000, 
-        nodesep: 20, 
-        ranksep: 50, 
-        rankdir: 'TB' }"></lib-ngx-canvas-graph>
+        nodesep: 25, 
+        ranksep: 10, 
+        rankdir: 'LR' }"
+        [graphData]="graphData"
+        (nodeClick)="nodeClick($event)"
+        (nodeMouseOver)="nodeMouseOver($event)"
+        (nodeDrawOverride) = "customNodeDraw($event)"
+        (linkDrawOverride) = "customLinkDraw($event)"
+        (clearOverride)="clearOverride($event)"
+        ></lib-ngx-canvas-graph>
+
+        <lib-ngx-canvas-graph *ngIf="plain" [graphId]="'customId'" 
+          [graphData]="graphData"
+          (nodeClick)="nodeClick($event)"
+          (nodeMouseOver)="nodeMouseOver($event)"
+          ></lib-ngx-canvas-graph>
+
+          
     </div>
   </div>
 </div>

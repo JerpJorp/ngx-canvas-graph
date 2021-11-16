@@ -1,16 +1,17 @@
-import { Component, ViewChild, ElementRef, OnInit, OnDestroy, Input } from '@angular/core';
+import { Component, OnInit, OnDestroy, Input, OnChanges, SimpleChanges, EventEmitter, Output } from '@angular/core';
 
 import { Subject } from 'rxjs';
-import { debounceTime, filter, takeUntil } from 'rxjs/operators';
+import {filter, takeUntil } from 'rxjs/operators';
 
 import * as dagre from "dagre";
+import * as uuid from 'uuid';
 
 import { CanvasHelper, NgxSmartCanvasService, SmartCanvasInfo } from 'ngx-smart-canvas';
 
-import { NgxCanvasGraphService } from './ngx-canvas-graph.service';
-
 import { Node } from './node';
 import { Link } from './link';
+import { GraphData, IExtendedEdge, IExtendedNode } from './graph-data';
+import { IClearOverrideParameters, ILinkOverrideParameters, INodeOverrideParameters } from './override-parameters';
 
 @Component({
   selector: 'lib-ngx-canvas-graph',
@@ -18,14 +19,26 @@ import { Link } from './link';
   styles: [
   ]
 })
-export class NgxCanvasGraphComponent implements OnInit, OnDestroy {
+export class NgxCanvasGraphComponent implements OnInit, OnChanges, OnDestroy {
 
+  @Input() graphId = uuid.v4();
+
+  @Input() graphData = new GraphData();
+  
   @Input() graphSettings: dagre.GraphLabel = { 
     width: 1800, 
     height: 1000, 
     nodesep: 20, 
     ranksep: 15, 
     rankdir: 'LR' };
+
+
+  @Output() nodeClick = new EventEmitter<Node>();
+  @Output() nodeMouseOver = new EventEmitter<Node>();
+
+  @Output() linkDrawOverride = new EventEmitter<ILinkOverrideParameters>();
+  @Output() nodeDrawOverride = new EventEmitter<INodeOverrideParameters>();
+  @Output() clearOverride = new EventEmitter<IClearOverrideParameters>();
 
   ctx: CanvasRenderingContext2D | null | undefined = undefined;
 
@@ -34,22 +47,30 @@ export class NgxCanvasGraphComponent implements OnInit, OnDestroy {
   edges: IExtendedEdge[] = [];
   nodes: dagre.Node<IExtendedNode>[] = [];
 
-  constructor(private svc: NgxCanvasGraphService, private smartSvc: NgxSmartCanvasService) { }
+  lastMousedNode: Node | undefined;
+
+  constructor(private smartSvc: NgxSmartCanvasService) { }
 
   ngOnInit(): void {
 
-    this.smartSvc.ready$.pipe(filter(x => x !== undefined)).subscribe(x => {
+    this.smartSvc.ready$.pipe(takeUntil(this.destroyed$), filter(x => x !== undefined && x.componentId === this.graphId)).subscribe(x => {
       this.ctx = x?.ctx as CanvasRenderingContext2D;
       this.Draw(this.ctx);
     });
 
-    this.smartSvc.redrawRequest$.subscribe(x => this.Draw(x.ctx));
+    this.smartSvc.redrawRequest$.pipe(takeUntil(this.destroyed$), filter(x => x.componentId === this.graphId)).subscribe(x => this.Draw(x.ctx));
 
-    this.smartSvc.click$.subscribe(x => this.MouseClick(x));
-    this.svc.nodes$
-      .pipe(takeUntil(this.destroyed$))
-      .subscribe(nodes => this.ProcessNodes());
+    this.smartSvc.click$.pipe(takeUntil(this.destroyed$), filter(x => x.componentId === this.graphId)).subscribe(x => this.MouseClick(x));
 
+    this.smartSvc.mouseOver$.pipe(takeUntil(this.destroyed$), filter(x => x.componentId === this.graphId)).subscribe(x => this.MouseOver(x));
+
+
+  }
+
+  ngOnChanges(changes: SimpleChanges): void {
+    if (changes.graphData) {
+      this.ProcessNodes();
+    }
   }
 
   ngOnDestroy(): void {
@@ -57,9 +78,14 @@ export class NgxCanvasGraphComponent implements OnInit, OnDestroy {
   }
 
   ProcessNodes(): void {
-    if (this.svc.nodes$.value) {
-      const nodes = this.svc.nodes$.value.nodes;
-      const links = this.svc.nodes$.value.links;
+
+    if (this.ctx) {
+      this.clear(this.ctx);
+    }
+
+    if (this.graphData.nodes) {
+      const nodes = this.graphData.nodes;
+      const links = this.graphData.links;
       const graph = new dagre.graphlib.Graph();
       graph.setGraph(this.graphSettings);
       nodes.forEach(node => graph.setNode(node.id, { width: 50 + node.displayText.length * 8, height: 42, source: node }));
@@ -77,22 +103,25 @@ export class NgxCanvasGraphComponent implements OnInit, OnDestroy {
     }
   }
  
-
   Draw(ctx: CanvasRenderingContext2D) {
-
-    //this.clear(ctx);
-    ctx.shadowColor = '#AAAAAA';
-    // ctx.shadowBlur = 10;
-
-    ctx.font = "18px system-ui";
-    ctx.textAlign = 'center'
+    this.clear(this.ctx as CanvasRenderingContext2D);
     this.edges.forEach(e => this.drawEdge(e, this.ctx as CanvasRenderingContext2D));
-    this.nodes.forEach(n => this.drawNode(n, this.ctx as CanvasRenderingContext2D))
-
+    this.nodes.forEach(n => this.drawNode(n, this.ctx as CanvasRenderingContext2D));
+    
   }
 
   private drawEdge(e: IExtendedEdge, ctx: CanvasRenderingContext2D) {
-    ctx.strokeStyle = e.link.color || 'rgba(125,125,125,.125)';
+
+    if (this.linkDrawOverride.observers.length > 0) {
+      const p: ILinkOverrideParameters = {extEdge: e, ctx: ctx, completed: true};
+
+      this.linkDrawOverride.emit(p);
+      if (p.completed) {
+        return;
+      }
+    }
+
+    ctx.strokeStyle = e.link.color || 'rgba(200,200,200,.125)';
     ctx.lineWidth  = 3;
 
     const startX = e.start.x + (e.start.width / 2);
@@ -101,34 +130,60 @@ export class NgxCanvasGraphComponent implements OnInit, OnDestroy {
     const endX = e.end.x + (e.end.width / 2);
     const endY = e.end.y + (e.end.height / 2)
 
-    // ctx.beginPath();
-    // ctx.moveTo(startX, startY);
-    // ctx.bezierCurveTo(startX + e.start.width * 0.8, startY, startX + e.start.width * 0.8 + 20, endY, endX, endY);
-    // ctx.stroke();
-
-    if (e.points.length > 0) {
-      const first = e.points[0] as IPoint;
-      ctx.beginPath();
-      ctx.moveTo(first.x, first.y);
-      e.points.forEach(p => ctx.lineTo(p.x, p.y));
-      ctx.stroke();
-  
-    }
+    ctx.beginPath();
+    ctx.moveTo(startX, startY);
+    ctx.lineTo(endX, endY);
+    ctx.stroke();
   }
 
   private drawNode(n: dagre.Node<IExtendedNode>, ctx: CanvasRenderingContext2D) {
-    ctx.fillStyle = n.source.backColor ? n.source.backColor : 'gray';
-    CanvasHelper.roundRect(ctx, n.x, n.y, n.width, n.height, 5);
-    this.ctx?.fill();
+    
+    if (this.nodeDrawOverride.observers.length > 0) {
+      const p: INodeOverrideParameters = {extNode: n, ctx: ctx, completed: true};
+      this.nodeDrawOverride.emit(p);
+
+      if (p.completed) {
+        return;
+      }
+      
+    }
+
+    ctx.font = "18px system-ui";
+    ctx.textAlign = 'center'
+    ctx.lineWidth  = 3;
+    ctx.shadowColor = '#AAAAAA';
+    ctx.shadowBlur = 4;
+
+    ctx.fillStyle = n.source.backColor ? n.source.backColor : '#dddddd';
+    CanvasHelper.roundRect(ctx, n.x, n.y, n.width, n.height, 5);    
+    ctx.fill();
+    ctx.strokeStyle = 'black';
+    ctx.stroke();
     if (n.source.displayText) {
       ctx.fillStyle = n.source.textColor ? n.source.textColor : 'black';
       ctx.fillText(n.source.displayText, n.x + (n.width / 2), n.y + 27);
     }
   }
 
+  MouseOver(x: SmartCanvasInfo): void {
+    const matching = this.findMatchingNode(x);
+    if (matching) {
+      if (this.lastMousedNode && this.lastMousedNode.id === matching.id) {
+        // do nothing
+      } else {
+        this.lastMousedNode = matching;
+        this.nodeMouseOver.emit(matching);        
+      }
+    }   
+  }
+
   MouseClick(x: SmartCanvasInfo): void {
     const matching = this.findMatchingNode(x);
-    this.svc.nodeClick$.next(matching);    
+    this.lastMousedNode = matching;
+
+    if (this.lastMousedNode) {
+      this.nodeClick.emit(matching);
+    }
   }
   
   private findMatchingNode(x: SmartCanvasInfo): Node | undefined {
@@ -149,6 +204,15 @@ export class NgxCanvasGraphComponent implements OnInit, OnDestroy {
   }
 
   clear(ctx: CanvasRenderingContext2D) {
+
+    if (this.clearOverride.observers.length > 0) {
+      const p: IClearOverrideParameters = {ctx: ctx, completed: true};
+      this.clearOverride.emit(p);
+      if (p.completed) {
+        return;
+      }
+    }
+    
     ctx.save();
     ctx.setTransform(1,0,0,1,0,0);
     // Will always clear the right space
@@ -158,18 +222,5 @@ export class NgxCanvasGraphComponent implements OnInit, OnDestroy {
   }
 }
 
-export interface IExtendedNode {
-  source: Node;
-}
 
-export interface IExtendedEdge {
-  start: dagre.Node;
-  end: dagre.Node;
-  link: Link;
-  points: IPoint[]
-}
 
-export interface IPoint {
-  x: number; 
-  y: number;
-}

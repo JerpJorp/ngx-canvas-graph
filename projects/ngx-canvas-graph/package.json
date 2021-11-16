@@ -1,11 +1,13 @@
 {
   "name": "ngx-canvas-graph",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "peerDependencies": {
     "@angular/common": "^12.2.0",
     "@angular/core": "^12.2.0",
+    "ngx-smart-canvas": "^0.0.9",
     "uuid": "^8.3.2",
-    "dagre": "^0.8.5"
+    "dagre": "^0.8.5",
+    "d3-shape": "^3.0.1"
   },
   "dependencies": {
     "tslib": "^2.3.0"
