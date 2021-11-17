@@ -6,7 +6,8 @@ export class Node {
     // to collapsed so it starts that way in the display.  Users can then toggle collapse/expand
     // tracked via this property to modify graph display
     internalDisplayState: 'collapsed' | 'expanded' | 'last' = 'expanded';
-
+    internalDepth = -1;
+    
     constructor(public displayText: string, 
         public backColor?: string, 
         public textColor?: string,

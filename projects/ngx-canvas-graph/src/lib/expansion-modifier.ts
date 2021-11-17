@@ -6,71 +6,77 @@ import { Node } from "./node";
 // traverses nodes/links and only filters out descendents of collapsed nodes
 export class ExpansionModifier {
 
-    root: ArrangedNode | undefined;
-
     uncollapsedGraphData: GraphData;
 
     constructor(public graphData: GraphData, collapseAtDepth: number) {
+        this.setInternalDepth(this.graphData.nodes[0]);
+        this.setDepthCollapse(collapseAtDepth);
         this.uncollapsedGraphData = {nodes: [], links: []};
-        this.build(collapseAtDepth);
+        this.addToUncollapsed(this.graphData.nodes[0]);
     }
 
-    build(collapseAtDepth: number) {
-        this.uncollapsedGraphData = {nodes: [], links: []};
-        const seenNodeIds: string[] = [];
-        if (this.graphData.nodes.length > 0) { this.nodeCheck(this.graphData.nodes[0], seenNodeIds, collapseAtDepth, false) }
+    setDepthCollapse(collapseAtDepth: number) {
+        this.graphData.nodes.filter(node => node.internalDepth >= collapseAtDepth).forEach(node => {
+            if (node.internalDisplayState === 'expanded') {
+                node.internalDisplayState = 'collapsed';
+            }
+        });
     }
 
-    nodeCheck(node: Node, seenNodeIds: string[], depth: number, collapsedAbove: boolean) {
-        
-        seenNodeIds.push(node.id);
+    setInternalDepth(node: Node | undefined, level = 0, seenNodeIds: string[] = []) {
+        if (node) {
+            node.internalDepth = level;
+            seenNodeIds.push(node.id);
 
-        const forcedCollapse = depth <= 0;
-        const forcedPreviuosly = depth < 0;
-
-        if (forcedCollapse) {
-            node.internalDisplayState = 'collapsed';
+            const children = this._children(node);
+            children.forEach(child => this.setInternalDepth(child.targetNode,  level + 1, seenNodeIds));
+            if (children.length === 0) {
+                node.internalDisplayState = 'last';
+            }
         }
+    }
 
-        if (!forcedPreviuosly && !collapsedAbove) {
+    addToUncollapsed(node: Node | undefined, seenNodeIds: string[] = []) {
+        if (node) {
+            seenNodeIds.push(node.id);
             this.uncollapsedGraphData.nodes.push(node);
+            if (node.internalDisplayState !== 'collapsed') {
+                const children = this._children(node);
+                this.uncollapsedGraphData.links.push(... children.map(x => x.link));
+                children
+                    .filter(child => !seenNodeIds.find(seen => seen === child.targetNode.id))
+                    .forEach(child => this.addToUncollapsed(child.targetNode, seenNodeIds));
+            }
         }
+    }
 
-        const childSet = this.graphData.links
+    _children(node: Node): {link: Link, targetNode: Node}[] {
+       return this.graphData.links
             .filter(link => link.fromNodeId === node.id)
             .map(link => ({link: link, targetNode: this.graphData.nodes.find(node => node.id === link.toNodeId)}))
             .filter(x => x.targetNode !== undefined) as {link: Link, targetNode: Node}[];
-
-        if (childSet.length === 0) {
-            node.internalDisplayState = 'last';
-            return;
-        }
-
-        let isCollapsed = true;
-        if (node.internalDisplayState === 'expanded' && !collapsedAbove) {
-            this.uncollapsedGraphData.links.push(... childSet.map(x => x.link));        
-            isCollapsed = false;
-        }
-
-        const unseenChildren = childSet.filter(x => !seenNodeIds.find(seenId => x.targetNode.id === seenId));
-        unseenChildren.forEach(child => {
-            this.nodeCheck(child.targetNode, seenNodeIds, depth - 1, isCollapsed)
-        });
-    
-        
     }
-
-    // called when user collapses a node
-
-    toggleCollapse(node: Node): boolean {
+    
+    // called by client when user collapses a node
+    ToggleCollapse(node: Node, cascade: boolean): boolean {
         if (node.internalDisplayState !== 'last') {
-            node.internalDisplayState = node.internalDisplayState === 'expanded' ? 'collapsed' : 'expanded';
-            this.build(99);
+            this._setInternalDisplayState(node, node.internalDisplayState === 'expanded' ? 'collapsed' : 'expanded', cascade);
+            this.uncollapsedGraphData = {nodes: [], links: []};
+            this.addToUncollapsed(this.graphData.nodes[0]);
             return true;
         } else {
             return false;
+        }        
+    }
+
+    _setInternalDisplayState(node: Node, internalDisplayState: 'collapsed' | 'expanded', cascade: boolean) {
+        node.internalDisplayState =internalDisplayState;
+        if (cascade) {
+            this._children(node)
+                .filter(child => child.targetNode.internalDisplayState !== 'last')
+                .forEach(child => this._setInternalDisplayState(child.targetNode, internalDisplayState, cascade))
         }
-        
+
     }
 }
 

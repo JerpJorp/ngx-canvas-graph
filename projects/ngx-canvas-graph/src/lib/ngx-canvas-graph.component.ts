@@ -174,7 +174,8 @@ export class NgxCanvasGraphComponent implements OnInit, OnChanges, OnDestroy {
     ctx.stroke();
     if (n.source.internalDisplayState === 'collapsed') {
       this.drawExpandIndicator(n, ctx);
-    }    
+    } 
+    
     if (n.source.displayText) {
       ctx.fillStyle = n.source.textColor ? n.source.textColor : 'black';
       ctx.fillText(n.source.displayText, n.x + (n.width / 2), n.y + 27);
@@ -205,7 +206,7 @@ export class NgxCanvasGraphComponent implements OnInit, OnChanges, OnDestroy {
     this.lastMousedNode = matching;
 
     if (this.expansionModifier && matching) {
-      if (this.expansionModifier.toggleCollapse(matching)) {
+      if (this.expansionModifier.ToggleCollapse(matching,  x.mouseToCanvas?.mouseEvent.ctrlKey || false)) {
         this.ProcessNodes();
       }
 
@@ -216,11 +217,16 @@ export class NgxCanvasGraphComponent implements OnInit, OnChanges, OnDestroy {
   }
 
   MouseClick(x: SmartCanvasInfo): void {
-    const matching = this.findMatchingNode(x);
-    this.lastMousedNode = matching;
 
-    if (this.lastMousedNode) {
-      this.nodeClick.emit(matching);
+    if (x.mouseToCanvas?.mouseEvent.shiftKey) {
+      this.MouseDoubleClick(x);
+    } else {
+      const matching = this.findMatchingNode(x);
+      this.lastMousedNode = matching;
+  
+      if (this.lastMousedNode) {
+        this.nodeClick.emit(matching);
+      }  
     }
   }
   
