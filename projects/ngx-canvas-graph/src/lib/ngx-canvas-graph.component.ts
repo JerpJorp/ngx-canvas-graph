@@ -32,8 +32,7 @@ export class NgxCanvasGraphComponent implements OnInit, OnChanges, OnDestroy {
     nodesep: 20, 
     ranksep: 15, 
     rankdir: 'LR' };
-
-
+  
   @Input() initialCollapseDepth = 99;
 
   @Output() nodeClick = new EventEmitter<Node>();
@@ -45,7 +44,7 @@ export class NgxCanvasGraphComponent implements OnInit, OnChanges, OnDestroy {
   @Output() clearOverride = new EventEmitter<IClearOverrideParameters>();
 
   ctx: CanvasRenderingContext2D | null | undefined = undefined;
-
+  
   destroyed$: Subject<void> = new Subject<void>();
 
   edges: IExtendedEdge[] = [];

@@ -11,9 +11,10 @@ export class Node {
     constructor(public displayText: string, 
         public backColor?: string, 
         public textColor?: string,
-        public properties?: { [index: string]: any}) {
+        public properties?: { [index: string]: any},
+        id?: string) {
       
-      this.id = 'id' + uuid.v4();
+      this.id =  id ? id : 'id' + uuid.v4();
 
     }
 }
